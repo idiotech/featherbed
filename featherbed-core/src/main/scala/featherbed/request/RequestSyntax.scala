@@ -147,7 +147,7 @@ trait RequestTypes { self: Client =>
       * @tparam K The type to which the response will be decoded
       * @return A future which will contain a validated response
       */
-    protected def sendRequest[K](implicit
+    def sendRequest[K](implicit
       canBuild: CanBuildRequest[Self],
       decodeAll: DecodeAll[K, Accept]
     ): Future[K] =
@@ -314,7 +314,6 @@ trait RequestTypes { self: Client =>
     ): Future[(Either[Error, Success], Response)] =
       sendZipRequest[Error, Success](canBuild, decodeAllSuccess, decodeAllError)
   }
-
   case class FormPostRequest[
     Accept <: Coproduct,
     Elements <: Either[None.type, NonEmptyList[ValidatedNel[Throwable, FormElement]]]
@@ -490,6 +489,50 @@ trait RequestTypes { self: Client =>
 
     def sendZip[Error, Success]()(implicit
       canBuild: CanBuildRequest[DeleteRequest[Accept]],
+      decodeAllError: DecodeAll[Error, Accept],
+      decodeAllSuccess: DecodeAll[Success, Accept]
+    ): Future[(Either[Error, Success], Response)] =
+      sendZipRequest[Error, Success](canBuild, decodeAllSuccess, decodeAllError)
+  }
+
+  case class PatchRequest[Content, ContentType, Accept <: Coproduct](
+    url: URL,
+    content: Content,
+    headers: List[(String, String)] = List.empty,
+    charset: Charset = StandardCharsets.UTF_8
+  ) extends RequestSyntax[Accept, PatchRequest[Content, ContentType, Accept]] {
+
+    def accept[AcceptTypes <: Coproduct]: PatchRequest[Content, ContentType, AcceptTypes] =
+      copy[Content, ContentType, AcceptTypes]()
+    def accept[AcceptTypes <: Coproduct](types: String*): PatchRequest[Content, ContentType, AcceptTypes] =
+    macro CoproductMacros.callAcceptCoproduct
+    def withHeaders(addHeaders: (String, String)*): PatchRequest[Content, ContentType, Accept] =
+      copy(headers = headers ::: addHeaders.toList)
+    def withCharset(charset: Charset): PatchRequest[Content, ContentType, Accept] =
+      copy(charset = charset)
+    def withUrl(url: URL): PatchRequest[Content, ContentType, Accept] =
+      copy(url = url)
+
+    def withContent[T, Type <: String](
+      content: T,
+      typ: Type)(implicit
+      witness: Witness.Aux[typ.type]
+    ): PatchRequest[T, typ.type, Accept] =
+      copy[T, typ.type, Accept](content = content)
+
+    def send[K]()(implicit
+      canBuild: CanBuildRequest[PatchRequest[Content, ContentType, Accept]],
+      decodeAll: DecodeAll[K, Accept]
+    ): Future[K] = sendRequest[K](canBuild, decodeAll)
+
+    def send[Error, Success]()(implicit
+      canBuild: CanBuildRequest[PatchRequest[Content, ContentType, Accept]],
+      decodeAllError: DecodeAll[Error, Accept],
+      decodeAllSuccess: DecodeAll[Success, Accept]
+    ): Future[Either[Error, Success]] = sendRequest[Error, Success](canBuild, decodeAllSuccess, decodeAllError)
+
+    def sendZip[Error, Success]()(implicit
+      canBuild: CanBuildRequest[PatchRequest[Content, ContentType, Accept]],
       decodeAllError: DecodeAll[Error, Accept],
       decodeAllSuccess: DecodeAll[Success, Accept]
     ): Future[(Either[Error, Success], Response)] =

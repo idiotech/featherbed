@@ -55,6 +55,19 @@ class Client(
     )
 
   /**
+    * Specify a PATCH request to be performed against the given resource
+    * @param relativePath The path to the resource, relative to the baseUrl
+    * @return A [[PatchRequest]] object, which can further specify and send the request
+    */
+  def patch(relativePath: String): PatchRequest[None.type, Nothing, Coproduct.`"*/*"`.T] =
+    PatchRequest[None.type, Nothing, Coproduct.`"*/*"`.T](
+      baseUrl.toURI.resolve(relativePath).toURL,
+      None,
+      List.empty,
+      charset
+    )
+
+  /**
     * Specify a HEAD request to be performed against the given resource
     * @param relativePath The path to the resource, relative to the baseUrl
     * @return A [[HeadRequest]] object, which can further specify and send the request

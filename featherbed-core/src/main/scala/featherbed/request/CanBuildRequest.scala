@@ -1,13 +1,12 @@
 package featherbed.request
 
 import scala.annotation.implicitNotFound
-
 import featherbed.Client
 import featherbed.content
 import featherbed.support.AcceptHeader
-
-import cats.data._, Validated._
-import com.twitter.finagle.http.{FormElement, Request, RequestBuilder}
+import cats.data._
+import Validated._
+import com.twitter.finagle.http.{FormElement, Method, Request, RequestBuilder}
 import com.twitter.finagle.http.RequestConfig.Yes
 import com.twitter.io.Buf
 import shapeless.{Coproduct, Witness}
@@ -105,6 +104,19 @@ trait RequestBuilding {
         )
       }
 
+    implicit def canBuildPatchRequestWithContentBuffer[Accept <: Coproduct, CT <: content.ContentType](
+      implicit
+      accept: AcceptHeader[Accept],
+      witness: Witness.Aux[CT]
+    ): CanBuildRequest[PatchRequest[Buf, CT, Accept]] =
+      new CanBuildRequest[PatchRequest[Buf, CT, Accept]] {
+        def build(patchRequest: PatchRequest[Buf, CT, Accept]) = Valid {
+          baseBuilder(patchRequest)
+            .addHeader("Content-Type", s"${witness.value}; charset=${patchRequest.charset.name}")
+            .buildPut(patchRequest.content).method(Method.Patch)
+        }
+      }
+
     implicit val canBuildHeadRequest = new CanBuildRequest[HeadRequest] {
       def build(headRequest: HeadRequest) = Valid(
         headRequest.buildHeaders(
@@ -147,6 +159,20 @@ trait RequestBuilding {
           buf => baseBuilder(putRequest)
             .addHeader("Content-Type", s"${witness.value}; charset=${putRequest.charset.name}")
             .buildPut(buf)
+        }
+      }
+
+    implicit def canBuildPatchRequestWithEncoder[Accept <: Coproduct, A, CT <: content.ContentType](
+      implicit
+      encoder: content.Encoder[A, CT],
+      witness: Witness.Aux[CT],
+      accept: AcceptHeader[Accept]
+    ): CanBuildRequest[PatchRequest[A, CT, Accept]] =
+      new CanBuildRequest[PatchRequest[A, CT, Accept]] {
+        def build(patchRequest: PatchRequest[A, CT, Accept]) = encoder(patchRequest.content, patchRequest.charset).map {
+          buf => baseBuilder(patchRequest)
+            .addHeader("Content-Type", s"${witness.value}; charset=${patchRequest.charset.name}")
+            .buildPut(buf).method(Method.Patch)
         }
       }
   }
